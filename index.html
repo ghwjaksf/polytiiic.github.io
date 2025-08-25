@@ -18,7 +18,7 @@
             position: fixed;
             inset: 0;
             z-index: 1;
-            pointer-events: none;
+            pointer-events: none; 
         }
         video {
             position: absolute;
@@ -59,7 +59,7 @@
             pointer-events: none;
         }
 
-        /* --- NOWOŚĆ: Style paska postępu i timera --- */
+        /* --- Style paska postępu i timera --- */
         .controls-container {
             position: fixed;
             bottom: 0;
@@ -129,83 +129,92 @@
     <script>
         const video = document.getElementById('bgvid');
         const playBtnContainer = document.getElementById('play-button-container');
-        const wrap = document.querySelector('.wrap');
-
-        // NOWOŚĆ: Elementy paska postępu
         const controlsContainer = document.querySelector('.controls-container');
         const progressBar = document.querySelector('.progress-bar');
         const progressFilled = document.querySelector('.progress-filled');
         const currentTimeEl = document.getElementById('current-time');
         const durationEl = document.getElementById('duration');
+        const wrap = document.querySelector('.wrap');
+        const pageElement = document.documentElement; // Pobieramy główny element strony (<html>)
 
-        // --- 1. Obsługa początkowego przycisku "Play" ---
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+        // --- GŁÓWNY PRZYCISK PLAY ---
         playBtnContainer.addEventListener('click', () => {
-            video.play().catch(error => {
-                console.error("Błąd podczas odtwarzania wideo:", error);
-            });
-            playBtnContainer.classList.add('hidden');
-            wrap.style.pointerEvents = 'auto';
-            video.style.cursor = 'pointer';
-            controlsContainer.classList.add('visible'); // Pokaż pasek postępu
+            // NOWOŚĆ: Uruchom tryb pełnoekranowy
+            openFullscreen();
+            
+            video.play().catch(error => console.error("Błąd odtwarzania wideo:", error));
         });
-
-        // --- 2. Obsługa pauzy i wznawiania przez kliknięcie wideo ---
-        video.addEventListener('click', () => {
-            if (video.paused) {
-                video.play();
-            } else {
-                video.pause();
-            }
-        });
-
-        // --- 3. Obsługa cofania do początku przez podwójne kliknięcie ---
-        video.addEventListener('dblclick', () => {
-            video.currentTime = 0;
-        });
-
-        // --- 4. Obsługa cofania i przewijania klawiszami ---
-        window.addEventListener('keydown', (event) => {
-            if (playBtnContainer.classList.contains('hidden')) {
-                const seekTime = 5;
-                switch (event.key) {
-                    case 'ArrowLeft':
-                        video.currentTime -= seekTime;
-                        break;
-                    case 'ArrowRight':
-                        video.currentTime += seekTime;
-                        break;
-                }
-            }
-        });
-
-        // --- 5. NOWOŚĆ: Funkcje do obsługi paska postępu i timera ---
         
-        // Funkcja do formatowania czasu (z sekund na MM:SS)
+        // --- KONFIGURACJA KONTROLEK PO ROZPOCZĘCIU ODTWARZANIA ---
+        video.addEventListener('play', () => {
+            playBtnContainer.classList.add('hidden');
+
+            if (isMobile) {
+                video.controls = true;
+            } else {
+                wrap.style.pointerEvents = 'auto'; 
+                setupDesktopControls();
+                controlsContainer.classList.add('visible');
+            }
+        }, { once: true });
+
+        // --- FUNKCJE DLA KOMPUTERÓW STACJONARNYCH ---
+        function setupDesktopControls() {
+            video.style.cursor = 'pointer';
+            
+            video.addEventListener('loadedmetadata', () => {
+                durationEl.textContent = formatTime(video.duration);
+            });
+
+            video.addEventListener('click', () => {
+                if (video.paused) { video.play(); } else { video.pause(); }
+            });
+
+            video.addEventListener('dblclick', () => { video.currentTime = 0; });
+
+            window.addEventListener('keydown', (event) => {
+                const seekTime = 5;
+                if (event.key === 'ArrowLeft') video.currentTime -= seekTime;
+                if (event.key === 'ArrowRight') video.currentTime += seekTime;
+            });
+
+            video.addEventListener('timeupdate', updateProgress);
+            progressBar.addEventListener('click', seek);
+        }
+
+        // --- FUNKCJE POMOCNICZE ---
+
+        // NOWOŚĆ: Funkcja do otwierania trybu pełnoekranowego w różnych przeglądarkach
+        function openFullscreen() {
+            if (pageElement.requestFullscreen) {
+                pageElement.requestFullscreen();
+            } else if (pageElement.mozRequestFullScreen) { /* Firefox */
+                pageElement.mozRequestFullScreen();
+            } else if (pageElement.webkitRequestFullscreen) { /* Chrome, Safari & Opera */
+                pageElement.webkitRequestFullscreen();
+            } else if (pageElement.msRequestFullscreen) { /* IE/Edge */
+                pageElement.msRequestFullscreen();
+            }
+        }
+
         function formatTime(seconds) {
             const minutes = Math.floor(seconds / 60);
             const secs = Math.floor(seconds % 60);
             return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
         }
-
-        // Aktualizacja paska postępu i timera w trakcie odtwarzania
-        video.addEventListener('timeupdate', () => {
+        
+        function updateProgress() {
             const progressPercent = (video.currentTime / video.duration) * 100;
             progressFilled.style.width = `${progressPercent}%`;
             currentTimeEl.textContent = formatTime(video.currentTime);
-        });
+        }
 
-        // Ustawienie całkowitego czasu trwania filmu, gdy tylko będzie dostępny
-        video.addEventListener('loadedmetadata', () => {
-            durationEl.textContent = formatTime(video.duration);
-        });
-        
-        // Funkcja do przewijania filmu po kliknięciu na pasku
-        progressBar.addEventListener('click', (e) => {
-            const progressWidth = progressBar.clientWidth;
-            const clickX = e.offsetX;
-            const seekToTime = (clickX / progressWidth) * video.duration;
+        function seek(e) {
+            const seekToTime = (e.offsetX / progressBar.clientWidth) * video.duration;
             video.currentTime = seekToTime;
-        });
+        }
     </script>
 </body>
 </html>
