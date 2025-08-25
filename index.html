@@ -18,7 +18,6 @@
             position: fixed;
             inset: 0;
             z-index: 1;
-            pointer-events: none; 
         }
         video {
             position: absolute;
@@ -106,8 +105,8 @@
             preload="auto"
             poster="poster.jpg"
         >
-            <source src="qr_finalny.webm" type="video/webm" />
-            <source src="qr_finalny.mp4" type="video/mp4" />
+            <source src="qrfinal.webm" type="video/webm" />
+            <source src="qrfinal.mp4" type="video/mp4" />
         </video>
     </div>
 
@@ -135,68 +134,74 @@
         const currentTimeEl = document.getElementById('current-time');
         const durationEl = document.getElementById('duration');
         const wrap = document.querySelector('.wrap');
-        const pageElement = document.documentElement; // Pobieramy główny element strony (<html>)
+        const pageElement = document.documentElement;
 
+        // Rozszerzone wykrywanie, aby odróżnić iOS od Androida
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
         // --- GŁÓWNY PRZYCISK PLAY ---
         playBtnContainer.addEventListener('click', () => {
-            // NOWOŚĆ: Uruchom tryb pełnoekranowy
-            openFullscreen();
-            
+            // Na iOS nie próbujemy włączać pełnego ekranu, bo to blokuje odtwarzanie
+            if (!isIOS) {
+                openFullscreen();
+            }
             video.play().catch(error => console.error("Błąd odtwarzania wideo:", error));
         });
         
-        // --- KONFIGURACJA KONTROLEK PO ROZPOCZĘCIU ODTWARZANIA ---
+        // --- KONFIGURACJA PO ROZPOCZĘCIU ODTWARZANIA ---
         video.addEventListener('play', () => {
             playBtnContainer.classList.add('hidden');
-
-            if (isMobile) {
+            
+            if (isIOS) {
+                // Na iOS włączamy natywne kontrolki - to najlepsze rozwiązanie dla tego systemu
                 video.controls = true;
+            } else if (isMobile) {
+                // Na Androidzie używamy naszych gestów
+                setupUniversalControls();
             } else {
-                wrap.style.pointerEvents = 'auto'; 
+                // Na komputerze używamy gestów, paska, klawiatury itd.
+                setupUniversalControls();
                 setupDesktopControls();
                 controlsContainer.classList.add('visible');
             }
         }, { once: true });
 
-        // --- FUNKCJE DLA KOMPUTERÓW STACJONARNYCH ---
-        function setupDesktopControls() {
+        // --- UNIWERSALNE KONTROLKI (dla Desktopu i Androida) ---
+        function setupUniversalControls() {
             video.style.cursor = 'pointer';
             
-            video.addEventListener('loadedmetadata', () => {
-                durationEl.textContent = formatTime(video.duration);
-            });
-
             video.addEventListener('click', () => {
                 if (video.paused) { video.play(); } else { video.pause(); }
             });
 
-            video.addEventListener('dblclick', () => { video.currentTime = 0; });
-
+            video.addEventListener('dblclick', (e) => {
+                const rect = video.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const seekTime = 10;
+                if (clickX < rect.width / 2) {
+                    video.currentTime -= seekTime;
+                } else {
+                    video.currentTime += seekTime;
+                }
+            });
+        }
+        
+        // --- FUNKCJE TYLKO DLA KOMPUTERÓW STACJONARNYCH ---
+        function setupDesktopControls() {
             window.addEventListener('keydown', (event) => {
                 const seekTime = 5;
                 if (event.key === 'ArrowLeft') video.currentTime -= seekTime;
                 if (event.key === 'ArrowRight') video.currentTime += seekTime;
             });
-
             video.addEventListener('timeupdate', updateProgress);
             progressBar.addEventListener('click', seek);
         }
 
         // --- FUNKCJE POMOCNICZE ---
-
-        // NOWOŚĆ: Funkcja do otwierania trybu pełnoekranowego w różnych przeglądarkach
         function openFullscreen() {
-            if (pageElement.requestFullscreen) {
-                pageElement.requestFullscreen();
-            } else if (pageElement.mozRequestFullScreen) { /* Firefox */
-                pageElement.mozRequestFullScreen();
-            } else if (pageElement.webkitRequestFullscreen) { /* Chrome, Safari & Opera */
-                pageElement.webkitRequestFullscreen();
-            } else if (pageElement.msRequestFullscreen) { /* IE/Edge */
-                pageElement.msRequestFullscreen();
-            }
+            if (pageElement.requestFullscreen) pageElement.requestFullscreen();
+            else if (pageElement.webkitRequestFullscreen) pageElement.webkitRequestFullscreen();
         }
 
         function formatTime(seconds) {
@@ -215,6 +220,10 @@
             const seekToTime = (e.offsetX / progressBar.clientWidth) * video.duration;
             video.currentTime = seekToTime;
         }
+        
+        video.addEventListener('loadedmetadata', () => {
+            durationEl.textContent = formatTime(video.duration);
+        });
     </script>
 </body>
 </html>
